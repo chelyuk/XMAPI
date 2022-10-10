@@ -1,6 +1,3 @@
-import json
-from http import HTTPStatus
-
 import pytest
 import requests
 
@@ -12,8 +9,8 @@ SEARCH = BASE_URL + "{path}?search={name}"
                          [("films", "A New Hope")])
 def test_film_by_name(path, name):
     api_uri = SEARCH.format(path=path, name=name)
-    resp = json.loads(requests.get(api_uri).text)
-    film = json_extract(resp, "title")[0]
+    resp = requests.get(api_uri).json()
+    film = json_extract(resp, "title")
     assert film == name
 
 
@@ -21,10 +18,8 @@ def test_film_by_name(path, name):
                          [("people", "Biggs Darklighter")])
 def test_character_by_name(path, name):
     api_uri = SEARCH.format(path=path, name=name)
-    resp = json.loads(requests.get(api_uri).text)
-    person = json_extract(resp, "name")[0]
-    characters = json_extract(resp, "characters")
-    print(characters)
+    resp = requests.get(api_uri).json()
+    person = json_extract(resp, "name")
     assert person == name
 
 
@@ -33,31 +28,34 @@ def test_character_by_name(path, name):
 def test_find_starship(path, name):
     starship_class = []
     api_uri = SEARCH.format(path=path, name=name)
-    luke = json.loads(requests.get(api_uri).text)
-    starships = json_extract(luke, "starships")[0]
+    luke = requests.get(api_uri).json()
+    starships = json_extract(luke, "starships")
     for x in starships:
-        starships_list = json.loads(requests.get(x).text)
+        starships_list = requests.get(x).json()
         starship_class.append(json_extract(starships_list, "starship_class"))
-    assert ["Starfighter"] in starship_class
+    assert "Starfighter" in starship_class
 
 
 @pytest.mark.parametrize("search_people, search_film, first_pilot, second_pilot, film_name",
                          [("people", "films", "Biggs Darklighter", "Luke Skywalker", "A New Hope")])
 def test_from_task(search_people, search_film, first_pilot, second_pilot, film_name):
-    starship_class = []
     characters_in_film = {}
     film_uri = SEARCH.format(path=search_film, name=film_name)
-    film = json.loads(requests.get(film_uri).text)
-    characters = json_extract(film, "characters")[0]
+    film = requests.get(film_uri).json()
+    characters = json_extract(film, "characters")
     for x in characters:
-        characters_list = json.loads(requests.get(x).text)
-        characters_in_film[json_extract(characters_list, "name")[0]] = x
-    biggs_starship = json_extract(json.loads(requests.get(characters_in_film[first_pilot]).text), "starships")[0][0]
-    starship_class = json_extract(json.loads(requests.get(biggs_starship).text), "starship_class")[0]
-    starfighter_crew = json_extract(json.loads(requests.get(biggs_starship).text), "pilots")[0]
+        characters_list = requests.get(x).json()
+        characters_in_film[json_extract(characters_list, "name")] = x
+    biggs_starship = get_data(characters_in_film[first_pilot], "starships")[0]
+    starship_class = get_data(biggs_starship, "starship_class")
+    starfighter_crew = get_data(biggs_starship, "pilots")
     assert starship_class == "Starfighter"
     assert second_pilot in characters_in_film.keys()
     assert characters_in_film[second_pilot] in starfighter_crew
+
+
+def get_data(data, search_criteria):
+    return json_extract(requests.get(data).json(), search_criteria)
 
 
 def json_extract(obj, key):
@@ -78,4 +76,7 @@ def json_extract(obj, key):
         return arr
 
     values = extract(obj, arr, key)
-    return values
+    if isinstance(values, list):
+        return values[0]
+    else:
+        return values
